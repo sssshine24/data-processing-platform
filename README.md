@@ -64,7 +64,7 @@ graph TD
     class I apiStyle;
     class J mqStyle;
     class K,L executorStyle;
-
+```
 ---
 
 ## 3. 核心功能与技术亮点
