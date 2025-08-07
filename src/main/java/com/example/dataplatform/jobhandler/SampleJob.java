@@ -332,7 +332,7 @@ public class SampleJob {
         String targetRemark = UUID.randomUUID().toString();
         XxlJobHelper.log("将在一百万数据中，查询备注为 {} 的订单...", targetRemark);
 
-        // 我们需要一个新的Mapper方法来按备注查询
+        // 使用新的Mapper方法来按备注查询
         List<Orders> result = ordersChannelAMapper.selectByRemark("orders_channel_a", targetRemark);
 
         long endTime = System.currentTimeMillis();
