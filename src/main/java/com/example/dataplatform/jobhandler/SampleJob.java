@@ -88,11 +88,8 @@ public class SampleJob {
      */
     @XxlJob("reconciliationJob")
     public void reconciliationJob() throws InterruptedException {
-        // 定义锁的Key和本次请求的ID
         String lockKey = "reconciliationJobLock";
         String requestId = UUID.randomUUID().toString();
-
-        // 尝试获取锁，锁的有效期设置为10分钟
         boolean lockAcquired = redisLockUtil.tryLock(lockKey, requestId, 600);
 
         if (lockAcquired) {
@@ -103,31 +100,27 @@ public class SampleJob {
                 ordersChannelAMapper.deleteAll("orders_channel_b");
                 XxlJobHelper.log("历史数据已清空...");
 
-        // 制造用于对账的测试数据
-        XxlJobHelper.log("正在生成新的测试数据...");
-        Orders order1_a = new Orders(null, "ORDER_001", new BigDecimal("100.00"), LocalDateTime.now().minusDays(1), "orders_channel_a");
-        Orders order1_b = new Orders(null, "ORDER_001", new BigDecimal("100.01"), LocalDateTime.now().minusDays(1), "orders_channel_b");
-        Orders order2_a = new Orders(null, "ORDER_002", new BigDecimal("200.00"), LocalDateTime.now().minusDays(1), "orders_channel_a");
-        Orders order3_b = new Orders(null, "ORDER_003", new BigDecimal("300.00"), LocalDateTime.now().minusDays(1), "orders_channel_b");
-        Orders order4_a = new Orders(null, "ORDER_004", new BigDecimal("400.00"), LocalDateTime.now().minusDays(1), "orders_channel_a");
-        Orders order4_b = new Orders(null, "ORDER_004", new BigDecimal("400.00"), LocalDateTime.now().minusDays(1), "orders_channel_b");
+                XxlJobHelper.log("正在生成新的测试数据...");
+                Orders order1_a = new Orders(null, "ORDER_001", new BigDecimal("100.00"), LocalDateTime.now().minusDays(1), "orders_channel_a");
+                Orders order1_b = new Orders(null, "ORDER_001", new BigDecimal("100.01"), LocalDateTime.now().minusDays(1), "orders_channel_b");
+                Orders order2_a = new Orders(null, "ORDER_002", new BigDecimal("200.00"), LocalDateTime.now().minusDays(1), "orders_channel_a");
+                Orders order3_b = new Orders(null, "ORDER_003", new BigDecimal("300.00"), LocalDateTime.now().minusDays(1), "orders_channel_b");
+                Orders order4_a = new Orders(null, "ORDER_004", new BigDecimal("400.00"), LocalDateTime.now().minusDays(1), "orders_channel_a");
+                Orders order4_b = new Orders(null, "ORDER_004", new BigDecimal("400.00"), LocalDateTime.now().minusDays(1), "orders_channel_b");
 
-        // 插入数据
-        ordersChannelAMapper.insertDynamic(order1_a);
-        ordersChannelAMapper.insertDynamic(order2_a);
-        ordersChannelAMapper.insertDynamic(order4_a);
-        ordersChannelAMapper.insertDynamic(order1_b);
-        ordersChannelAMapper.insertDynamic(order3_b);
-        ordersChannelAMapper.insertDynamic(order4_b);
-        XxlJobHelper.log("新的测试数据已生成...");
+                ordersChannelAMapper.insertDynamic(order1_a);
+                ordersChannelAMapper.insertDynamic(order2_a);
+                ordersChannelAMapper.insertDynamic(order4_a);
+                ordersChannelAMapper.insertDynamic(order1_b);
+                ordersChannelAMapper.insertDynamic(order3_b);
+                ordersChannelAMapper.insertDynamic(order4_b);
+                XxlJobHelper.log("新的测试数据已生成...");
                 TimeUnit.SECONDS.sleep(1);
 
                 XxlJobHelper.log("----------------- 对账开始 -----------------");
                 List<Orders> ordersA = ordersChannelAMapper.selectAll("orders_channel_a");
                 List<Orders> ordersB = ordersChannelAMapper.selectAll("orders_channel_b");
-
                 Map<String, Orders> mapB = ordersB.stream().collect(Collectors.toMap(Orders::getOrderId, order -> order));
-
                 for (Orders orderA : ordersA) {
                     String orderIdA = orderA.getOrderId();
                     Orders orderB = mapB.get(orderIdA);
@@ -140,7 +133,6 @@ public class SampleJob {
                         mapB.remove(orderIdA);
                     }
                 }
-
                 if (!mapB.isEmpty()) {
                     for (String orderIdB : mapB.keySet()) {
                         XxlJobHelper.log("[差异] 渠道B订单 [{}] 在渠道A中不存在！", orderIdB);
@@ -149,7 +141,6 @@ public class SampleJob {
                 XxlJobHelper.log("----------------- 对账结束 -----------------");
 
             } finally {
-                // 释放锁
                 redisLockUtil.unlock(lockKey, requestId);
                 XxlJobHelper.log("任务执行完毕，释放分布式锁。");
             }
