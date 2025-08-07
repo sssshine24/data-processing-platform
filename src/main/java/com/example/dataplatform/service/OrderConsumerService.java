@@ -26,7 +26,7 @@ public class OrderConsumerService {
         logger.info("从消息队列中接收到订单 [{}]，准备写入数据库...", order.getOrderId());
         try {
             // 设置要插入的表名，并执行数据库插入
-            order.setDynamicTableName("orders_channel_a"); // 我们统一存入A表
+            order.setDynamicTableName("orders_channel_a"); // 统一存入A表
             ordersChannelAMapper.insertDynamic(order);
 
             logger.info("订单 [{}] 已成功写入数据库！", order.getOrderId());
