@@ -14,16 +14,19 @@
 
 ```mermaid
 graph TD
-    %% 1. 定义样式类别 (CSS-like Styling)
+    %% 1. 定义样式类别
     classDef userStyle fill:#f2f2f2,stroke:#333,stroke-width:2px,color:#333
     classDef adminStyle fill:#e6f3ff,stroke:#0066cc,stroke-width:2px,color:#003366
     classDef executorStyle fill:#e6ffee,stroke:#009933,stroke-width:2px,color:#004d1a
     classDef dbStyle fill:#fff5e6,stroke:#ff9900,stroke-width:2px,color:#995c00
     classDef redisStyle fill:#ffe6e6,stroke:#cc0000,stroke-width:2px,color:#800000
+    classDef mqStyle fill:#f3e6ff,stroke:#6600cc,stroke-width:2px,color:#330066
+    classDef apiStyle fill:#e6f9ff,stroke:#00b8e6,stroke-width:2px,color:#005c73
 
     %% 2. 定义图表节点
-    subgraph " "
+    subgraph "外部系统/用户"
         A["开发者/运维人员"]
+        H["实时数据源 (如: 合作商户)"]
     end
 
     subgraph "<b>调度中心 (XXL-JOB Admin)</b>"
@@ -32,28 +35,50 @@ graph TD
         D["元数据库 (MySQL)"]
     end
 
-    %% 【核心修正】在标题中间加入了 <br> 换行标签
-    subgraph "<b>业务执行器集群<br>(data-platform)</b>"
-        E1["执行器实例1 (端口:8081)"]
-        E2["执行器实例2 (端口:8082)"]
-        F["业务数据库 (MySQL)"]
-        G["分布式锁/缓存 (Redis)"]
+    subgraph "<b>数据处理与对账平台 (data-platform)</b>"
+        direction LR
+        subgraph " "
+            I[API 接口 (Controller)]
+        end
+        
+        subgraph " "
+            J[消息队列 (RabbitMQ)]
+        end
+
+        subgraph " "
+            K[消息消费服务 (Consumer)]
+            L[批处理任务 (XXL-JOB Handler)]
+        end
+
+        subgraph " "
+            F["业务数据库 (MySQL)"]
+            G["分布式锁/缓存 (Redis)"]
+        end
     end
 
     %% 3. 定义连接关系
-    A -- "1.配置/监控任务" --> B
-    B -- "2.管理任务信息" --> C
-    C -- "3.读写任务元数据" --> D
-    C -- "4.触发任务(心跳/日志)" --> E1 & E2
-    E1 & E2 -- "5.抢占分布式锁" --> G
-    E1 & E2 -- "6.读写业务数据" --> F
+    A -- "1. 配置/监控<br>离线任务" --> B
+    B -- "管理任务信息" --> C
+    C -- "读写元数据" --> D
+    C -- "2. 触发离线任务<br>(心跳/日志)" --> L
+    
+    H -- "3. 发送实时订单" --> I
+    I -- "4. 消息入队<br>(异步解耦/削峰)" --> J
+    J -- "5. 消息出队" --> K
+    
+    K -- "6. 实时数据写入" --> F
+    L -- "7. 批量数据处理<br>(对账/报表)" --> F
+    
+    K & L -- "读写缓存<br>抢占分布式锁" --> G
     
     %% 4. 将样式应用到节点
-    class A userStyle;
+    class A,H userStyle;
     class B,C adminStyle;
-    class E1,E2 executorStyle;
     class D,F dbStyle;
     class G redisStyle;
+    class I apiStyle;
+    class J mqStyle;
+    class K,L executorStyle;
 ```
 
 ---
@@ -78,6 +103,9 @@ graph TD
 #### ✨ 海量数据并行处理方案
 * 通过在本机模拟**执行器集群**，并采用“**分片广播**”路由策略，成功实现了将单一的海量数据任务“切分”给多个节点**并行处理**的方案，为系统的水平扩展和性能提升打下了基础。
 
+#### ✨ 高并发实时数据接收与异步处理
+* 基于 **RabbitMQ 消息队列**，设计并实现了一套**高并发、异步化**的实时数据接收链路。
+* 通过**生产者-消费者模式**，成功将前端高并发请求与后端数据库写入操作**解耦**，利用消息队列的缓冲能力实现**削峰填谷**，极大地提升了系统的稳定性和API的响应速度。
 ---
 
 ## 4. 技术栈
@@ -89,7 +117,7 @@ graph TD
 | **数据库** | MySQL 8.0 |
 | **持久层框架** | MyBatis-Plus |
 | **缓存/分布式锁** | Redis |
-| **消息队列** | **RabbitMQ** *(后续规划)* |
+| **消息队列** | **RabbitMQ** |
 | **项目构建** | Maven 3.9+ |
 | **架构/部署** | **Docker, Docker Compose** *(后续规划)* |
 | **开发环境** | IntelliJ IDEA, JDK 17/21 |
@@ -116,17 +144,3 @@ graph TD
 
 ---
 
-## 6. 后续规划 (TODO)
-
-- [ ] **构建高并发实时数据接收端**
-  - **目标**：为平台增加处理实时数据流的能力，构建“批流一体”的混合架构。
-  - **实现路径**：
-    - 引入 **RabbitMQ 消息队列**，将数据入口改造为**异步架构**，实现服务间的深度解耦和流量的**削峰填谷**。
-    - 开发一个面向外部的、基于 Spring MVC 的**高并发 API 接口**，用于接收实时数据。
-    - 编写独立的**消息消费者**，从队列中安全地获取数据并持久化到数据库。
-
-- [ ] **容器化与一键部署**
-  - **目标**：提升项目的部署效率和环境一致性，向 DevOps 迈进。
-  - **实现路径**：
-    - 为 `data-platform` 执行器、`xxl-job-admin` 调度中心、`MySQL`、`Redis` 等所有组件，分别编写 **Dockerfile**。
-    - 使用 **Docker Compose** 编写统一的编排脚本，实现整个项目环境的“**一键启动**”和“一键销毁”。
